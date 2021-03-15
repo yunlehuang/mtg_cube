@@ -9,10 +9,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Libraries
 
-```{r}
+```{r, echo=FALSE}
 library(tidyverse)
 library(jsonlite)
 library(readxl)
+library(gsheet)
 ```
 
 Import the url of the card back image:
@@ -26,26 +27,46 @@ Import excel list of cards and their image urls. Images must be the direct links
 Prompts the user to select the Excel file for import.
 
 ```{r}
-## This .xlsx file must have exactly 3 columns: card_title, cascade_helper, url
-url_table_address <- file.choose()
+## Import table from google sheets
+cubecard_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=397638921"
+token_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=990091517"
+land_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=2139880948"
+```
+
+Import the files
+
+```{r}
+## Prompt user to select which deck to import
+import_option <- readline(prompt = "Select which deck to use:\n1=Cube cards\n2=Tokens\n3=Basic lands")
+```
+
+
+```{r}
+## Import cube cards depending on which option was selected
+option_cubecard <- 1
+option_token <- 2
+option_land <- 3
+
+if (import_option == option_cubecard) {
+  deck_import <- gsheet2tbl(cubecard_address)
+} else if (import_option == option_token) {
+  deck_import <- gsheet2tbl(token_address)
+} else if (import_option == option_land) {
+  deck_import <- gsheet2tbl(land_address)
+} else {
+  stop("Must pick options 1 thru 3")
+}
+
+## Filter out NA and select the relevant columns
+deck_xl <- 
+  deck_import %>% 
+  filter(!is.na(card_title)) %>% 
+  select(card_title, cascade_helper, url)
 ```
 
 ```{r}
-## Get the original name of the file without the full path or the file extension
-url_table_basename_noext <- 
-  url_table_address %>% 
-  basename() %>% 
-  file_path_sans_ext()
-```
-
-```{r}
-## import the file
-deck_xl <- read_excel(url_table_address)
-```
-
-```{r}
-## If the basename is "basicland_url.xlsx" then replicate the deck so that the land pile is large.
-if (url_table_basename_noext == "basicland_url") {
+## If the deck is the basic land deck, then replicate the cards so that there's enough cards to use.
+if (import_option == option_land) {
   deck_xl <- 
     deck_xl %>% 
     slice(rep(1:n(), each = 20))
