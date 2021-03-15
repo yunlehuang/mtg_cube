@@ -1,0 +1,84 @@
+---
+title: "Import json deck"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+## libraries
+library(tidyverse)
+library(jsonlite)
+library(readxl)
+library(tools)
+library(writexl)
+```
+
+
+```{r}
+## Prompts the user to select the file for import. Pick a json file exported from frogtown.
+frogtown_json_path <- file.choose()
+```
+
+```{r}
+## import the json deck file
+import <- 
+  read_json(frogtown_json_path,
+            simplifyVector = TRUE)
+
+## pull in the list of card titles
+nicknames_df <- import[[1]][[2]][[1]]
+```
+
+
+```{r}
+## next we need to get a tibble of the urls
+url_nested_df <- 
+  import[[1]][[4]] %>% 
+  transpose() %>% ## transpose is used since the import provides a 2 x n dataframe but we need a n x 2 dataframe
+  as_tibble() ## convert it back to a tibble since transpose outputs a list
+```
+
+```{r}
+## frogtown has each card listed as the URL for the card itself, plus a URL for its token. So each (card:token) pair is displayed as a list of 2 in the FaceURL column.
+
+## We need to pull out the first element of each list to get the non-token URL.
+get_nontoken_url <- function(x) {
+  x[[1]]
+}
+
+## map will apply the get_nontoken_url to each element in the FaceURL column.
+url_df <- 
+  url_nested_df %>% 
+  mutate(FaceURL = map(FaceURL,
+                       get_nontoken_url)) %>% 
+  mutate(FaceURL = unlist(FaceURL)) ## not sure why but we still need to do this, but it works so whatever
+```
+
+```{r}
+## bind together the nickname tibble + url tibble. Then select our columns of interest.
+name_url_df <- 
+  bind_cols(nicknames_df, url_df) %>% 
+  select(Nickname, FaceURL)
+```
+
+```{r}
+## Get the original name of the file without the full path or the file extension
+frogtown_basename_noext <- 
+  frogtown_json_path %>% 
+  basename() %>% 
+  file_path_sans_ext()
+```
+
+```{r}
+## Save our results to Excel
+write_xlsx(name_url_df,
+           path = paste0("output/",
+                         frogtown_basename_noext,
+                         "_flat.xlsx"),
+           format_headers = FALSE)
+```
+

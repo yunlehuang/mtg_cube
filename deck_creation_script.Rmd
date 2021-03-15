@@ -1,0 +1,190 @@
+---
+title: "Json deck creation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(tidyverse)
+library(jsonlite)
+library(readxl)
+```
+
+Import the url of the card back image:
+
+```{r}
+backimage_url <- "https://customcards.s3.us-east-2.amazonaws.com/card_back.jpg"
+```
+
+Import excel list of cards and their image urls. Images must be the direct links. E.g. must end in ".png"
+
+Prompts the user to select the Excel file for import.
+
+```{r}
+## This .xlsx file must have exactly 3 columns: card_title, cascade_helper, url
+url_table_address <- file.choose()
+```
+
+```{r}
+## Get the original name of the file without the full path or the file extension
+url_table_basename_noext <- 
+  url_table_address %>% 
+  basename() %>% 
+  file_path_sans_ext()
+```
+
+```{r}
+## import the file
+deck_xl <- read_excel(url_table_address)
+```
+
+```{r}
+## If the basename is "basicland_url.xlsx" then replicate the deck so that the land pile is large.
+if (url_table_basename_noext == "basicland_url") {
+  deck_xl <- 
+    deck_xl %>% 
+    slice(rep(1:n(), each = 20))
+}
+```
+
+```{r}
+deck_df <- 
+  deck_xl %>% 
+  transmute(card_name = paste0(card_title,
+                               "\n",
+                               cascade_helper),
+            url = url) %>% 
+  mutate(CardID = row_number() * 100,
+         card_number = row_number())
+```
+
+
+Create the deck name.
+
+```{r}
+Name <- "DeckCustom"
+```
+
+Each card has a field called "Transform" that lists how the card is oriented and shaped. We'll use this as a field in the next ContainedObjects object.
+
+```{r}
+transform_obj <- list(posX = unbox(0),
+                      posY = unbox(0),
+                      posZ = unbox(0),
+                      rotX = unbox(0),
+                      rotY = unbox(180),
+                      rotZ = unbox(180),
+                      scaleX = unbox(1),
+                      scaleY = unbox(1),
+                      scaleZ = unbox(1)
+                      )
+
+## The entire deck also has a Transform object too, which is only different in the posY.
+transform_obj_deck <- list(posX = unbox(0),
+                           posY = unbox(1),
+                           posZ = unbox(0),
+                           rotX = unbox(0),
+                           rotY = unbox(180),
+                           rotZ = unbox(180),
+                           scaleX = unbox(1),
+                           scaleY = unbox(1),
+                           scaleZ = unbox(1)
+                           )
+```
+
+Create a tibble that has the cards.
+
+```{r}
+ContainedObjects <- 
+  deck_df %>% 
+  mutate(Name = "Card",
+         Nickname = card_name,
+         Transform = list(transform_obj)) %>% 
+  select(CardID, Name, Nickname, Transform)
+```
+
+Create a vector of DeckIDs
+
+```{r}
+DeckIDs <- 
+  ContainedObjects %>% 
+  select(CardID) %>% 
+  pull()
+```
+
+Create the CustomDeck object, which is a list of unique cards in the deck.
+
+```{r}
+CustomDeck_df <- 
+  deck_df %>% 
+  mutate(FaceURL = url,
+         BackURL = backimage_url,
+         NumHeight = 1,
+         NumWidth = 1,
+         BackIsHidden = TRUE) %>% 
+  select(FaceURL, BackURL, NumHeight, NumWidth, BackIsHidden)
+
+
+CustomDeck_transpose <- 
+  CustomDeck_df %>% 
+  transpose()
+
+unboxeachitem <- function(x) {
+  lapply(x, unbox)
+}
+
+CustomDeck <- 
+  lapply(CustomDeck_transpose, unboxeachitem)
+
+CustomDeck_names <- deck_df %>% 
+  select(card_number) %>% 
+  transmute(card_number = as.character(card_number)) %>% 
+  pull()
+
+names(CustomDeck) <- CustomDeck_names
+```
+
+Create the Transform object for the deck:
+
+```{r}
+Transform <- transform_obj_deck
+```
+
+Create the list that will eventually go into the ObjectStates array:
+
+```{r}
+ObjectStates_obj <- list(unbox(Name), ContainedObjects, DeckIDs, CustomDeck, Transform)
+names(ObjectStates_obj) <- c("Name", "ContainedObjects", "DeckIDs", "CustomDeck", "Transform")
+```
+
+Create the named array:
+
+```{r}
+final_deck <- list(list(ObjectStates_obj))
+names(final_deck) <- "ObjectStates"
+```
+
+Write the results
+
+```{r}
+date_id <- 
+  format(Sys.time(),
+         "%Y%m%d_%H%M%S")
+
+write_json(final_deck,
+           paste0("output/",
+                  url_table_basename_noext,
+                  "_",
+                  date_id,
+                  ".json")
+           )
+```
+
+
+
+
