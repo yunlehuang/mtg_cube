@@ -16,30 +16,24 @@ library(readxl)
 library(gsheet)
 ```
 
-Import the url of the card back image:
+## Import
 
 ```{r}
 backimage_url <- "https://customcards.s3.us-east-2.amazonaws.com/card_back.jpg"
 ```
 
-Import excel list of cards and their image urls. Images must be the direct links. E.g. must end in ".png"
-
-Prompts the user to select the Excel file for import.
-
 ```{r}
 ## Import table from google sheets
-cubecard_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=397638921"
+# cubecard_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=397638921"
+cubecard_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=388804950"
 token_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=990091517"
 land_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=2139880948"
 ```
-
-Import the files
 
 ```{r}
 ## Prompt user to select which deck to import
 import_option <- readline(prompt = "Select which deck to use:\n1=Cube cards\n2=Tokens\n3=Basic lands")
 ```
-
 
 ```{r}
 ## Import cube cards depending on which option was selected
@@ -57,11 +51,22 @@ if (import_option == option_cubecard) {
   stop("Must pick options 1 thru 3")
 }
 
-## Filter out NA and select the relevant columns
+## Filter out NA card titles
 deck_xl <- 
   deck_import %>% 
-  filter(!is.na(card_title)) %>% 
-  select(card_title, cascade_helper, url)
+  filter(!is.na(card_title))
+
+## Filter out cards that aren't ready for publishing
+if (import_option == option_cubecard) {
+  deck_xl <- 
+    deck_xl %>% 
+    filter(ready_to_publish == TRUE)
+}
+
+## select the relevant columns
+deck_xl <- 
+  deck_xl %>% 
+  select(card_title, script_cascade_helper, card_url)
 ```
 
 ```{r}
@@ -78,14 +83,13 @@ deck_df <-
   deck_xl %>% 
   transmute(card_name = paste0(card_title,
                                "\n",
-                               cascade_helper),
-            url = url) %>% 
+                               script_cascade_helper),
+            url = card_url) %>% 
   mutate(CardID = row_number() * 100,
          card_number = row_number())
 ```
 
-
-Create the deck name.
+## Create json deck
 
 ```{r}
 Name <- "DeckCustom"
@@ -197,13 +201,19 @@ date_id <-
   format(Sys.time(),
          "%Y%m%d_%H%M%S")
 
-write_json(final_deck,
-           paste0("output/",
-                  url_table_basename_noext,
-                  "_",
-                  date_id,
-                  ".json")
-           )
+json_name <- switch(as.integer(import_option),
+                    "cubecards",
+                    "tokens",
+                    "basiclands")
+
+write_json(
+  final_deck,
+  paste0("output/",
+        json_name,
+        "_",
+        date_id,
+        ".json")
+)
 ```
 
 

@@ -1,0 +1,47 @@
+---
+title: "cost cleanup"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(writexl)
+```
+
+```{r}
+## import
+raw <- read_excel("misc/original_costs.xlsx")
+```
+
+```{r}
+## function that surrounds matched text with brackets
+surround_w_bracket <- function(cost) {
+  paste0(
+    "{",
+    cost,
+    "}"
+  )
+}
+
+## regex matches manacosts and uses previous function to surround with brackets
+subbed_df <- 
+  raw %>% 
+  mutate(
+    testsub = str_replace_all(cost, "(?<![{])[XWUBRG0-9](?![}])", surround_w_bracket)
+  )
+
+subbed_df
+```
+
+```{r}
+## save results
+write_xlsx(subbed_df,
+           "misc/cleaned_costs.xlsx",
+           format_headers = FALSE)
+```
+
