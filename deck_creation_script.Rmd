@@ -24,7 +24,6 @@ backimage_url <- "https://customcards.s3.us-east-2.amazonaws.com/card_back.jpg"
 
 ```{r}
 ## Import table from google sheets
-# cubecard_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=397638921"
 cubecard_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=388804950"
 token_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=990091517"
 land_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjIMTTkfNJ94niuSxmcYObM/edit#gid=2139880948"
@@ -32,7 +31,7 @@ land_address <- "https://docs.google.com/spreadsheets/d/1e126rklurwrdjOKVxNV6DjI
 
 ```{r}
 ## Prompt user to select which deck to import
-import_option <- readline(prompt = "Select which deck to use:\n1=Cube cards\n2=Tokens\n3=Basic lands")
+import_option <- readline(prompt = "Select which deck to use:\n1=Cube cards\n2=Tokens\n3=Basic lands\n4=Modal card backs")
 ```
 
 ```{r}
@@ -40,6 +39,7 @@ import_option <- readline(prompt = "Select which deck to use:\n1=Cube cards\n2=T
 option_cubecard <- 1
 option_token <- 2
 option_land <- 3
+option_back <- 4
 
 if (import_option == option_cubecard) {
   deck_import <- gsheet2tbl(cubecard_address)
@@ -47,8 +47,10 @@ if (import_option == option_cubecard) {
   deck_import <- gsheet2tbl(token_address)
 } else if (import_option == option_land) {
   deck_import <- gsheet2tbl(land_address)
+} else if (import_option == option_back) {
+  deck_import <- gsheet2tbl(cubecard_address)
 } else {
-  stop("Must pick options 1 thru 3")
+  stop("Must pick options 1 thru 4")
 }
 
 ## Filter out NA card titles
@@ -61,6 +63,15 @@ if (import_option == option_cubecard) {
   deck_xl <- 
     deck_xl %>% 
     filter(ready_to_publish == TRUE)
+}
+
+## if the deck is the card backs, then select and rename columns.
+if (import_option == option_back) {
+  deck_xl <- 
+    deck_xl %>% 
+    select(card_title, script_cascade_helper, back_url) %>% 
+    filter(!is.na(back_url)) %>% 
+    rename(card_url = back_url)
 }
 
 ## select the relevant columns
@@ -204,7 +215,8 @@ date_id <-
 json_name <- switch(as.integer(import_option),
                     "cubecards",
                     "tokens",
-                    "basiclands")
+                    "basiclands",
+                    "cardbacks")
 
 write_json(
   final_deck,
